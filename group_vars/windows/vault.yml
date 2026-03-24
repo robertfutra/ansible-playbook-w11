@@ -1,0 +1,9 @@
+---
+# This file must be encrypted with ansible-vault before committing.
+# Run: ansible-vault encrypt group_vars/windows/vault.yml
+#
+# To edit after encrypting: ansible-vault edit group_vars/windows/vault.yml
+
+vault_ansible_password: "REPLACE_WITH_NEW_PASSWORD"
+vault_wireguard_private_key: "REPLACE_WITH_BASE64_PRIVATE_KEY"
+vault_wireguard_peer_public_key: "REPLACE_WITH_BASE64_PUBLIC_KEY"

@@ -1,0 +1,10 @@
+---
+- name: Pause for WireGuard service initialization
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: Restart WireGuard tunnel service
+  ansible.windows.win_service:
+    name: "WireGuardTunnel${{ tunnel_name }}"
+    state: restarted
+  failed_when: false   # Service may not exist on first run

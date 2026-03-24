@@ -1,0 +1,68 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Overview
+
+Ansible playbook to install and configure the WireGuard VPN client on a Windows 11 host over SSH.
+
+- **Ansible controller**: Linux VM at `10.70.0.246` (user: `fadmin`)
+- **Target host**: Windows 11 VM at `10.88.0.47` (user: `robert`)
+- **Connection method**: SSH + PowerShell shell (not WinRM)
+- **Required collection**: `ansible.windows` (`ansible-galaxy collection install ansible.windows`)
+
+## Running the playbook
+
+```bash
+# Test connectivity
+ansible -m win_ping windows
+
+# Run full deployment
+ansible-playbook site.yml
+
+# Run with verbose output
+ansible-playbook site.yml -v
+
+# Dry run (check mode)
+ansible-playbook site.yml --check
+```
+
+## Architecture
+
+The project uses a single role (`roles/wireguard`) with this flow:
+
+1. **`site.yml`** — entry point; asserts Windows target, applies `wireguard` role, reports tunnel service state
+2. **`inventory/hosts.yml`** — defines the `windows` group with SSH connection vars
+3. **`group_vars/windows.yml`** — non-secret path variables (installer URL, exe path, config dir)
+4. **`roles/wireguard/vars/main.yml`** — tunnel-specific variables (keys, address, peer endpoint); secrets should be moved to `ansible-vault`
+5. **`roles/wireguard/tasks/main.yml`** — 8 idempotent tasks: check install → download → install silently → flush handlers → ensure config dir → deploy config → register tunnel service → start service
+6. **`roles/wireguard/templates/tunnel.conf.j2`** — Jinja2 template for the WireGuard `.conf` file; conditional blocks for optional DNS and PersistentKeepalive
+7. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
+
+## Key variables to set before running
+
+In `roles/wireguard/vars/main.yml`:
+- `wireguard_private_key` — client private key (base64)
+- `wireguard_peer_public_key` — server public key (base64)
+- `wireguard_peer_endpoint` — server IP/hostname and port (e.g. `1.2.3.4:51820`)
+- `wireguard_address` — client VPN IP in CIDR notation (e.g. `10.0.0.2/24`)
+
+## Windows 11 prerequisites
+
+The target must have OpenSSH Server configured with PowerShell as the default shell:
+
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+Start-Service sshd
+Set-Service -Name sshd -StartupType Automatic
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+Restart-Service sshd
+```
+
+## Secrets handling
+
+Credentials in `inventory/hosts.yml` (`ansible_password`) and keys in `roles/wireguard/vars/main.yml` are plaintext for lab use. For production, encrypt them with:
+
+```bash
+ansible-vault encrypt_string 'plaintext_value' --name 'variable_name'
+```

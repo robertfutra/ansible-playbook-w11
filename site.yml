@@ -1,0 +1,26 @@
+---
+- name: Deploy WireGuard VPN on Windows 11
+  hosts: windows
+  gather_facts: true
+  become: false
+
+  pre_tasks:
+    - name: Assert target is Windows
+      ansible.builtin.assert:
+        that:
+          - ansible_os_family == "Windows"
+        fail_msg: "This playbook only runs on Windows hosts."
+
+  roles:
+    - role: wireguard
+
+  post_tasks:
+    - name: Query WireGuard tunnel service status
+      ansible.windows.win_service:
+        name: "WireGuardTunnel${{ tunnel_name }}"
+      register: final_svc
+      failed_when: false
+
+    - name: Display WireGuard tunnel state
+      ansible.builtin.debug:
+        msg: "Tunnel '{{ tunnel_name }}' state: {{ final_svc.state | default('not registered') }}"

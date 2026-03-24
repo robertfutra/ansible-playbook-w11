@@ -1,0 +1,79 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Check if WireGuard is already installed
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Check if WireGuard executable exists
+  ansible.windows.win_stat:
+    path: "{{ wireguard_exe }}"
+  register: wg_exe_stat
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Download installer (only when WireGuard is not installed)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Download WireGuard installer
+  ansible.windows.win_get_url:
+    url: "{{ wireguard_installer_url }}"
+    dest: "{{ wireguard_installer_dest }}"
+    force: false
+  when: not wg_exe_stat.stat.exists
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Install WireGuard silently (/S = NSIS silent flag)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Install WireGuard silently
+  ansible.windows.win_package:
+    path: "{{ wireguard_installer_dest }}"
+    arguments: /S
+    state: present
+  when: not wg_exe_stat.stat.exists
+  notify: Pause for WireGuard service initialization
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Flush handlers so the post-install pause runs before config deployment
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Flush handlers after installation
+  ansible.builtin.meta: flush_handlers
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Ensure the WireGuard configurations directory exists
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Ensure WireGuard configurations directory exists
+  ansible.windows.win_file:
+    path: "{{ wireguard_config_dir }}"
+    state: directory
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Deploy tunnel config from Jinja2 template
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Deploy WireGuard tunnel configuration
+  ansible.windows.win_template:
+    src: tunnel.conf.j2
+    dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
+    backup: true
+  notify: Restart WireGuard tunnel service
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Register the tunnel as a Windows service (if not already registered)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Check if WireGuard tunnel service is already registered
+  ansible.windows.win_service:
+    name: "WireGuardTunnel${{ tunnel_name }}"
+  register: wg_service_info
+  failed_when: false
+
+- name: Register WireGuard tunnel as a Windows service
+  ansible.windows.win_command: >
+    "{{ wireguard_exe }}" /installtunnelservice
+    "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
+  when: >
+    wg_service_info.exists is not defined
+    or not wg_service_info.exists
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Ensure the tunnel service is running and set to auto-start
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Ensure WireGuard tunnel service is running
+  ansible.windows.win_service:
+    name: "WireGuardTunnel${{ tunnel_name }}"
+    state: started
+    start_mode: auto

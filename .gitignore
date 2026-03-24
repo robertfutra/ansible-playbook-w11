@@ -1,0 +1,16 @@
+# Vault password file — never commit this
+.vault_pass
+.vault_password
+
+# Ansible retry files
+*.retry
+
+# Private keys
+*.key
+*.pem
+
+# Editor/OS files
+*.swp
+*.bak
+*~
+.DS_Store
