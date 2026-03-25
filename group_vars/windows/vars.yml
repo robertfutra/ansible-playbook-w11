@@ -15,6 +15,3 @@ wireguard_install_dir: 'C:\Program Files\WireGuard'
 wireguard_exe: 'C:\Program Files\WireGuard\wireguard.exe'
 wireguard_config_dir: 'C:\Program Files\WireGuard\Data\Configurations'
 
-# WireGuard tunnel config — content comes from vault
-wireguard_config: "{{ vars['vault_wireguard_config'] }}"
-

@@ -43,27 +43,14 @@ The project uses a single role (`roles/wireguard`) with this flow:
 
 ## Providing the WireGuard config file
 
-The tunnel config content is stored as a vault variable `vault_wireguard_config` in `group_vars/windows/vault.yml`. To add or replace it:
+The tunnel config is a pre-generated `.conf` file stored encrypted in the repo at `roles/wireguard/files/wg0.conf`. To add or replace it:
 
 ```bash
-ansible-vault edit group_vars/windows/vault.yml
+# Encrypt your .conf file and place it where the role expects it
+ansible-vault encrypt wg0.conf --output roles/wireguard/files/wg0.conf
 ```
 
-Add the variable with the full `.conf` content as a multiline string:
-
-```yaml
-vault_wireguard_config: |
-  [Interface]
-  PrivateKey = <key>
-  Address = <cidr>
-
-  [Peer]
-  PublicKey = <key>
-  Endpoint = <host>:<port>
-  AllowedIPs = 0.0.0.0/0
-```
-
-The `tunnel_name` variable in `roles/wireguard/vars/main.yml` sets the filename on the target (e.g. `wg0` → `wg0.conf`) and the Windows service suffix.
+The deploy task reads the file using `lookup('file', ...)` on the controller, which automatically decrypts vault-encrypted files, then writes the decrypted content to the target via `win_copy content:`. The `tunnel_name` variable in `roles/wireguard/vars/main.yml` must match the filename (without `.conf`).
 
 ## Windows 11 prerequisites
 
@@ -86,7 +73,8 @@ Secrets are stored encrypted in `group_vars/windows/vault.yml` using ansible-vau
 
 Vault variables used:
 - `vault_robert-w11_password` — SSH password for the Windows target (reference via `vars['vault_robert-w11_password']` to avoid Jinja2 treating the hyphen as minus)
-- `vault_wireguard_config` — full WireGuard `.conf` file content as a multiline string
+
+The WireGuard config is stored as a vault-encrypted **file** (`roles/wireguard/files/wg0.conf`). The deploy task reads it with `lookup('file', ...)` which decrypts it on the controller before writing to the target.
 
 To re-encrypt or edit the vault:
 

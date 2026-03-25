@@ -47,7 +47,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Deploy WireGuard tunnel configuration
   ansible.windows.win_copy:
-    content: "{{ wireguard_config }}"
+    content: "{{ lookup('file', role_path + '/files/' + tunnel_name + '.conf') }}"
     dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
     backup: true
   notify: Restart WireGuard tunnel service
