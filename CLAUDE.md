@@ -43,14 +43,27 @@ The project uses a single role (`roles/wireguard`) with this flow:
 
 ## Providing the WireGuard config file
 
-The tunnel config is a pre-generated `.conf` file stored encrypted in the repo at `roles/wireguard/files/wg0.conf`. To add or replace it:
+The tunnel config content is stored as a vault variable `vault_wireguard_config` in `group_vars/windows/vault.yml`. To add or replace it:
 
 ```bash
-# Encrypt your .conf file and place it where the role expects it
-ansible-vault encrypt wg0.conf --output roles/wireguard/files/wg0.conf
+ansible-vault edit group_vars/windows/vault.yml
 ```
 
-Ansible auto-decrypts the file when copying it to the target, as long as the vault password is provided at runtime. The `tunnel_name` variable in `roles/wireguard/vars/main.yml` must match the filename (without `.conf`).
+Add the variable with the full `.conf` content as a multiline string:
+
+```yaml
+vault_wireguard_config: |
+  [Interface]
+  PrivateKey = <key>
+  Address = <cidr>
+
+  [Peer]
+  PublicKey = <key>
+  Endpoint = <host>:<port>
+  AllowedIPs = 0.0.0.0/0
+```
+
+The `tunnel_name` variable in `roles/wireguard/vars/main.yml` sets the filename on the target (e.g. `wg0` → `wg0.conf`) and the Windows service suffix.
 
 ## Windows 11 prerequisites
 
@@ -72,9 +85,8 @@ Secrets are stored encrypted in `group_vars/windows/vault.yml` using ansible-vau
 - **GitHub Actions:** `VAULT_PASSWORD` repository secret, written to a temp file and deleted after the playbook run
 
 Vault variables used:
-- `vault_robert-w11_password` — SSH password for the Windows target (reference in YAML using `vars['vault_robert-w11_password']` to avoid Jinja2 treating the hyphen as a minus operator)
-
-The WireGuard config is stored as a vault-encrypted **file** (`roles/wireguard/files/wg0.conf`), not as individual variables.
+- `vault_robert-w11_password` — SSH password for the Windows target (reference via `vars['vault_robert-w11_password']` to avoid Jinja2 treating the hyphen as minus)
+- `vault_wireguard_config` — full WireGuard `.conf` file content as a multiline string
 
 To re-encrypt or edit the vault:
 
