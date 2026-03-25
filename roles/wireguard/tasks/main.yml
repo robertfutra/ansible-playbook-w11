@@ -43,11 +43,11 @@
     state: directory
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Deploy tunnel config from Jinja2 template
+# 6. Deploy tunnel config (vault-encrypted file, auto-decrypted by Ansible)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Deploy WireGuard tunnel configuration
-  ansible.windows.win_template:
-    src: tunnel.conf.j2
+  ansible.windows.win_copy:
+    src: wg0.conf
     dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
     backup: true
   notify: Restart WireGuard tunnel service

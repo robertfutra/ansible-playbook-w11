@@ -1,15 +1,4 @@
 ---
-# Tunnel name — also used as the .conf filename and Windows service suffix
+# Tunnel name — used as the .conf filename and Windows service suffix
+# Must match the filename in roles/wireguard/files/ (without .conf extension)
 tunnel_name: "wg0"
-
-# ── Local interface ──────────────────────────────────────────────────────────
-wireguard_address: "10.0.0.2/24"
-wireguard_dns: "1.1.1.1"          # leave empty ("") to skip DNS configuration
-
-# ── Peer (VPN server) ────────────────────────────────────────────────────────
-wireguard_peer_endpoint: "SERVER_IP:51820"            # IP or hostname of the WireGuard server
-wireguard_peer_allowed_ips: "0.0.0.0/0, ::/0"        # full tunnel; use specific CIDR for split-tunnel
-wireguard_peer_persistent_keepalive: 25               # seconds; set to 0 to disable
-
-# Note: wireguard_private_key and wireguard_peer_public_key come from
-# group_vars/windows/vault.yml (ansible-vault encrypted)

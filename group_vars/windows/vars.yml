@@ -1,7 +1,7 @@
 ---
 # SSH connection settings
 ansible_user: robert
-ansible_password: "{{ vault_ansible_password }}"
+ansible_password: "{{ vault_robert-w11_password }}"
 ansible_connection: ssh
 ansible_shell_type: powershell
 ansible_port: 22
@@ -15,6 +15,3 @@ wireguard_install_dir: 'C:\Program Files\WireGuard'
 wireguard_exe: 'C:\Program Files\WireGuard\wireguard.exe'
 wireguard_config_dir: 'C:\Program Files\WireGuard\Data\Configurations'
 
-# WireGuard keys — values come from vault
-wireguard_private_key: "{{ vault_wireguard_private_key }}"
-wireguard_peer_public_key: "{{ vault_wireguard_peer_public_key }}"
