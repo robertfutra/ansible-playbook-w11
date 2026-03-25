@@ -1,7 +1,7 @@
 ---
 # SSH connection settings
 ansible_user: robert
-ansible_password: "{{ vault_robert-w11_password }}"
+ansible_password: "{{ vars['vault_robert-w11_password'] }}"
 ansible_connection: ssh
 ansible_shell_type: powershell
 ansible_port: 22

@@ -72,7 +72,7 @@ Secrets are stored encrypted in `group_vars/windows/vault.yml` using ansible-vau
 - **GitHub Actions:** `VAULT_PASSWORD` repository secret, written to a temp file and deleted after the playbook run
 
 Vault variables used:
-- `vault_robert-w11_password` — SSH password for the Windows target
+- `vault_robert-w11_password` — SSH password for the Windows target (reference in YAML using `vars['vault_robert-w11_password']` to avoid Jinja2 treating the hyphen as a minus operator)
 
 The WireGuard config is stored as a vault-encrypted **file** (`roles/wireguard/files/wg0.conf`), not as individual variables.
 
