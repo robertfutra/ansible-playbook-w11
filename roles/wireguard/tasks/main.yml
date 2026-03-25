@@ -53,6 +53,22 @@
   notify: Restart WireGuard tunnel service
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 6b. Verify deployed config is a real WireGuard file (not raw vault ciphertext)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Verify deployed config is a valid WireGuard file
+  ansible.windows.win_shell: "(Get-Content '{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf' -TotalCount 1).Trim()"
+  register: conf_first_line
+  changed_when: false
+
+- name: Assert config starts with [Interface]
+  ansible.builtin.assert:
+    that: conf_first_line.stdout | trim == '[Interface]'
+    fail_msg: >
+      Config file does not look like a valid WireGuard config.
+      First line: '{{ conf_first_line.stdout }}'.
+      The vault-encrypted source file may not have been decrypted before copy.
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 7. Register the tunnel as a Windows service (if not already registered)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Check if WireGuard tunnel service is already registered
@@ -74,6 +90,18 @@
   ansible.windows.win_command: >
     "{{ wireguard_exe }}" /installtunnelservice
     "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
+  when: >
+    wg_service_info.exists is not defined
+    or not wg_service_info.exists
+
+- name: Wait for WireGuard tunnel service to appear after registration
+  ansible.windows.win_service:
+    name: "WireGuardTunnel${{ tunnel_name }}"
+  register: tunnel_svc_poll
+  until: tunnel_svc_poll.exists | default(false)
+  retries: 10
+  delay: 3
+  failed_when: false
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
