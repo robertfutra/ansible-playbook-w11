@@ -68,6 +68,12 @@
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
+  register: wg_install_result
+
+- name: Show wireguard /installtunnelservice output
+  ansible.builtin.debug:
+    var: wg_install_result
+  when: wg_install_result is defined
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Ensure the tunnel service is running and set to auto-start
