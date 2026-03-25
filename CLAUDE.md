@@ -33,11 +33,13 @@ The project uses a single role (`roles/wireguard`) with this flow:
 
 1. **`site.yml`** — entry point; asserts Windows target, applies `wireguard` role, reports tunnel service state
 2. **`inventory/hosts.yml`** — defines the `windows` group with SSH connection vars
-3. **`group_vars/windows.yml`** — non-secret path variables (installer URL, exe path, config dir)
-4. **`roles/wireguard/vars/main.yml`** — tunnel-specific variables (keys, address, peer endpoint); secrets should be moved to `ansible-vault`
-5. **`roles/wireguard/tasks/main.yml`** — 8 idempotent tasks: check install → download → install silently → flush handlers → ensure config dir → deploy config → register tunnel service → start service
-6. **`roles/wireguard/templates/tunnel.conf.j2`** — Jinja2 template for the WireGuard `.conf` file; conditional blocks for optional DNS and PersistentKeepalive
-7. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
+3. **`group_vars/windows/vars.yml`** — non-secret path variables (installer URL, exe path, config dir)
+4. **`group_vars/windows/vault.yml`** — ansible-vault encrypted secrets (SSH password, WireGuard keys)
+5. **`roles/wireguard/vars/main.yml`** — tunnel-specific variables (address, peer endpoint, tunnel name)
+6. **`roles/wireguard/tasks/main.yml`** — 8 idempotent tasks: check install → download → install silently → flush handlers → ensure config dir → deploy config → register tunnel service → start service
+7. **`roles/wireguard/templates/tunnel.conf.j2`** — Jinja2 template for the WireGuard `.conf` file; conditional blocks for optional DNS and PersistentKeepalive
+8. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
+9. **`.github/workflows/deploy.yml`** — GitHub Actions CI/CD; runs on self-hosted runner, decrypts vault via `VAULT_PASSWORD` secret, deploys on every push to `main`
 
 ## Key variables to set before running
 
@@ -61,8 +63,19 @@ Restart-Service sshd
 
 ## Secrets handling
 
-Credentials in `inventory/hosts.yml` (`ansible_password`) and keys in `roles/wireguard/vars/main.yml` are plaintext for lab use. For production, encrypt them with:
+Secrets are stored encrypted in `group_vars/windows/vault.yml` using ansible-vault (AES256). The vault password is provided at runtime via:
+
+- **Local runs:** `--vault-password-file ~/.vault_pass` or prompted interactively
+- **GitHub Actions:** `VAULT_PASSWORD` repository secret, written to a temp file and deleted after the playbook run
+
+Vault variables used:
+- `vault_ansible_password` — SSH password for the Windows target
+- `vault_wireguard_private_key` — WireGuard client private key (base64)
+- `vault_wireguard_peer_public_key` — WireGuard server public key (base64)
+
+To re-encrypt or edit the vault:
 
 ```bash
-ansible-vault encrypt_string 'plaintext_value' --name 'variable_name'
+ansible-vault edit group_vars/windows/vault.yml
+ansible-vault rekey group_vars/windows/vault.yml
 ```

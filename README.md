@@ -110,7 +110,7 @@ wireguard_peer_endpoint: "SERVER_IP:51820"
 wireguard_peer_allowed_ips: "0.0.0.0/0, ::/0"
 ```
 
-> **Security note:** The `wireguard_private_key` and `ansible_password` are stored in plain text for lab use. In a production environment, encrypt them using `ansible-vault`.
+> **Security note:** Secrets (`wireguard_private_key`, `ansible_password`) are encrypted with `ansible-vault` and stored in `group_vars/windows/vault.yml`. The vault password is stored as a GitHub Actions secret (`VAULT_PASSWORD`) and never written to disk beyond the workflow run.
 
 ---
 
@@ -132,6 +132,31 @@ ansible-playbook site.yml -v
 
 ---
 
+## Automated Deployment (GitHub Actions)
+
+Every push to `main` automatically triggers a deployment via the self-hosted runner on the Ansible server (`10.70.0.246`). The workflow can also be triggered manually from the GitHub Actions UI.
+
+**What the workflow does:**
+
+1. Clones the repo to `~/ansible-playbook-w11` on the runner if it doesn't exist, or pulls the latest changes
+2. Writes the vault password (from the `VAULT_PASSWORD` GitHub secret) to a temp file
+3. Runs `ansible-playbook site.yml --vault-password-file .vault_pass`
+4. Deletes the temp vault password file (always, even on failure)
+
+**Setup required on the runner (ansible-server):**
+
+- GitHub Actions self-hosted runner installed and registered to the repo
+- `ansible` and the `ansible.windows` collection installed
+- SSH access to the target Windows machine configured
+
+**GitHub secret required:**
+
+| Secret | Description |
+|--------|-------------|
+| `VAULT_PASSWORD` | Password used to decrypt `group_vars/windows/vault.yml` |
+
+---
+
 ## Verifying the Result
 
 After the playbook finishes, check on the Windows machine:
@@ -150,12 +175,17 @@ Get-Service "WireGuardTunnel*"
 
 ```
 ansible-playbook/
+├── .github/
+│   └── workflows/
+│       └── deploy.yml                   # GitHub Actions CI/CD workflow (self-hosted runner)
 ├── ansible.cfg                          # Ansible configuration (SSH, inventory path)
 ├── site.yml                             # Main playbook entry point
 ├── inventory/
 │   └── hosts.yml                        # Target hosts and connection settings
 ├── group_vars/
-│   └── windows.yml                      # Shared variables (installer URL, paths)
+│   └── windows/
+│       ├── vars.yml                     # Non-secret variables (installer URL, paths)
+│       └── vault.yml                    # Ansible Vault encrypted secrets
 └── roles/
     └── wireguard/
         ├── tasks/main.yml               # Installation and configuration tasks
