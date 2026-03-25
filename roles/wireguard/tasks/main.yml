@@ -56,6 +56,11 @@
   delay: 3
   when: not wg_exe_stat.stat.exists
 
+- name: Wait for WireGuard manager to finish background initialization
+  ansible.builtin.pause:
+    seconds: 10
+  when: not wg_exe_stat.stat.exists
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Deploy tunnel config (vault-encrypted file, auto-decrypted by Ansible)
 # ─────────────────────────────────────────────────────────────────────────────
