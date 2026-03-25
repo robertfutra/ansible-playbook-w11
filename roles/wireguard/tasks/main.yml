@@ -58,7 +58,7 @@
 
 - name: Wait for WireGuard manager to finish background initialization
   ansible.builtin.pause:
-    seconds: 10
+    seconds: 50
   when: not wg_exe_stat.stat.exists
 
 # ─────────────────────────────────────────────────────────────────────────────
