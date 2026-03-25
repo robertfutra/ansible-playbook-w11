@@ -1,0 +1,28 @@
+name: Deploy WireGuard Playbook
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allows manual trigger from the GitHub Actions UI
+
+jobs:
+  deploy:
+    runs-on: self-hosted   # executes on the ansible-server runner (10.70.0.246)
+
+    steps:
+      - name: Pull latest changes from GitHub
+        run: |
+          cd ~/ansible-playbook-w11
+          git pull origin main
+
+      - name: Write vault password to temp file
+        run: echo "${{ secrets.VAULT_PASSWORD }}" > ~/ansible-playbook-w11/.vault_pass
+
+      - name: Run Ansible playbook
+        run: |
+          cd ~/ansible-playbook-w11
+          ansible-playbook site.yml --vault-password-file .vault_pass
+
+      - name: Remove vault password file
+        if: always()   # runs even if the playbook step fails
+        run: rm -f ~/ansible-playbook-w11/.vault_pass
