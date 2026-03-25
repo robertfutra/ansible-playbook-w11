@@ -90,20 +90,27 @@ Restart-Service sshd
 
 ## Providing the WireGuard config file
 
-The tunnel config is a pre-generated `.conf` file (obtained from your VPN server admin or generated with `wg genkey`) that is stored **encrypted** in the repo at `roles/wireguard/files/wg0.conf`.
-
-To add or replace it:
+The tunnel config is stored as a vault variable inside `group_vars/windows/vault.yml`. To add or replace it:
 
 ```bash
-# Encrypt your .conf file and place it where the role expects it
-ansible-vault encrypt wg0.conf --output roles/wireguard/files/wg0.conf
-
-# Commit the encrypted file
-git add roles/wireguard/files/wg0.conf
-git commit -m "Update WireGuard tunnel config"
+ansible-vault edit group_vars/windows/vault.yml
 ```
 
-The `tunnel_name` variable in `roles/wireguard/vars/main.yml` must match the filename (without `.conf`). Ansible auto-decrypts the file when copying it to the target.
+Add (or update) the `vault_wireguard_config` variable with the full `.conf` content:
+
+```yaml
+vault_wireguard_config: |
+  [Interface]
+  PrivateKey = <your private key>
+  Address = <your VPN IP/CIDR>
+
+  [Peer]
+  PublicKey = <server public key>
+  Endpoint = <server IP>:<port>
+  AllowedIPs = 0.0.0.0/0
+```
+
+The `tunnel_name` variable in `roles/wireguard/vars/main.yml` sets the filename on the target machine (e.g. `wg0` → `wg0.conf`) and the Windows service suffix (`WireGuardTunnel$wg0`).
 
 ---
 
@@ -116,8 +123,8 @@ Secrets are stored encrypted using ansible-vault (AES256). The vault password is
 
 | Secret | Location | Description |
 |--------|----------|-------------|
-| SSH password | `group_vars/windows/vault.yml` | Password for the `robert` user on the Windows target |
-| WireGuard config | `roles/wireguard/files/wg0.conf` | Vault-encrypted tunnel `.conf` file |
+| SSH password | `group_vars/windows/vault.yml` (`vault_robert-w11_password`) | Password for the `robert` user on the Windows target |
+| WireGuard config | `group_vars/windows/vault.yml` (`vault_wireguard_config`) | Full `.conf` file content as a multiline vault variable |
 
 ```bash
 # Edit or re-key the vault variables file
@@ -206,5 +213,5 @@ ansible-playbook/
         ├── tasks/main.yml               # Installation and configuration tasks
         ├── handlers/main.yml            # Service restart and post-install pause
         ├── vars/main.yml                # Tunnel name
-        └── files/wg0.conf              # Vault-encrypted WireGuard tunnel config
+        └── files/                       # (empty — tunnel config is in vault.yml)
 ```

@@ -43,36 +43,17 @@
     state: directory
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Wait for WireGuardManager before touching the config directory
-#    On a fresh install, WireGuardManager initializes in the background after
-#    win_package completes and may clear Data\Configurations while starting up.
-# ─────────────────────────────────────────────────────────────────────────────
-- name: Wait for WireGuard manager service to be ready
-  ansible.windows.win_service:
-    name: WireGuardManager
-  register: wg_manager_state
-  until: wg_manager_state.state == 'running'
-  retries: 10
-  delay: 3
-  when: not wg_exe_stat.stat.exists
-
-- name: Wait for WireGuard manager to finish background initialization
-  ansible.builtin.pause:
-    seconds: 500
-  when: not wg_exe_stat.stat.exists
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 7. Deploy tunnel config (vault-encrypted file, auto-decrypted by Ansible)
+# 6. Deploy tunnel config from vault variable (decrypted at render time)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Deploy WireGuard tunnel configuration
   ansible.windows.win_copy:
-    src: wg0.conf
+    content: "{{ wireguard_config }}"
     dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
     backup: true
   notify: Restart WireGuard tunnel service
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7b. Verify deployed config is a real WireGuard file (not raw vault ciphertext)
+# 6b. Verify deployed config is a valid WireGuard file
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Verify deployed config is a valid WireGuard file
   ansible.windows.win_shell: "(Get-Content '{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf' -TotalCount 1).Trim()"
@@ -82,10 +63,7 @@
 - name: Assert config starts with [Interface]
   ansible.builtin.assert:
     that: conf_first_line.stdout | trim == '[Interface]'
-    fail_msg: >
-      Config file does not look like a valid WireGuard config.
-      First line: '{{ conf_first_line.stdout }}'.
-      The vault-encrypted source file may not have been decrypted before copy.
+    fail_msg: "Config first line was: '{{ conf_first_line.stdout }}'. Check vault_wireguard_config in vault.yml."
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Register the tunnel as a Windows service (if not already registered)
