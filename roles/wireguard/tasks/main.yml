@@ -61,6 +61,15 @@
   register: wg_service_info
   failed_when: false
 
+- name: Wait for WireGuard manager service to be ready
+  ansible.windows.win_service:
+    name: WireGuardManager
+  register: wg_manager_state
+  until: wg_manager_state.state == 'running'
+  retries: 10
+  delay: 3
+  when: not wg_exe_stat.stat.exists
+
 - name: Register WireGuard tunnel as a Windows service
   ansible.windows.win_command: >
     "{{ wireguard_exe }}" /installtunnelservice
@@ -68,12 +77,6 @@
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
-  register: wg_install_result
-
-- name: Show wireguard /installtunnelservice output
-  ansible.builtin.debug:
-    var: wg_install_result
-  when: wg_install_result is defined
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Ensure the tunnel service is running and set to auto-start
