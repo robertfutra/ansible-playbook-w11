@@ -43,30 +43,7 @@
     state: directory
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Deploy tunnel config from vault variable (decrypted at render time)
-# ─────────────────────────────────────────────────────────────────────────────
-- name: Deploy WireGuard tunnel configuration
-  ansible.windows.win_copy:
-    content: "{{ lookup('file', role_path + '/files/' + tunnel_name + '.conf') }}"
-    dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
-    backup: true
-  notify: Restart WireGuard tunnel service
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 6b. Verify deployed config is a valid WireGuard file
-# ─────────────────────────────────────────────────────────────────────────────
-- name: Verify deployed config is a valid WireGuard file
-  ansible.windows.win_shell: "(Get-Content '{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf' -TotalCount 1).Trim()"
-  register: conf_first_line
-  changed_when: false
-
-- name: Assert config starts with [Interface]
-  ansible.builtin.assert:
-    that: conf_first_line.stdout | trim == '[Interface]'
-    fail_msg: "Config first line was: '{{ conf_first_line.stdout }}'. Check vault_wireguard_config in vault.yml."
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 8. Register the tunnel as a Windows service (if not already registered)
+# 6. Check if the tunnel service is already registered
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Check if WireGuard tunnel service is already registered
   ansible.windows.win_service:
@@ -74,10 +51,34 @@
   register: wg_service_info
   failed_when: false
 
-- name: Register WireGuard tunnel as a Windows service
-  ansible.windows.win_command: >
-    "{{ wireguard_exe }}" /installtunnelservice
-    "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
+# ─────────────────────────────────────────────────────────────────────────────
+# 7a. FRESH INSTALL PATH (no tunnel service registered yet)
+#
+#     WireGuardManager runs a FileSystemWatcher on the Configurations directory.
+#     If we write the .conf file there directly, the watcher detects it, tries
+#     to auto-register the tunnel, fails (no existing service), and DELETES the
+#     file — regardless of how long we wait before writing.
+#
+#     Fix: stage the config to C:\Windows\Temp\ (outside the watched directory),
+#     then move it to Configurations and call /installtunnelservice in a single
+#     PowerShell script so there is no gap for the watcher to fire.
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Stage WireGuard config to temp (outside watched directory)
+  ansible.windows.win_copy:
+    src: wg0.conf
+    dest: 'C:\Windows\Temp\{{ tunnel_name }}.conf'
+    backup: false
+  when: >
+    wg_service_info.exists is not defined
+    or not wg_service_info.exists
+
+- name: Move config and register tunnel service atomically
+  ansible.windows.win_shell: |
+    $temp = 'C:\Windows\Temp\{{ tunnel_name }}.conf'
+    $dest = '{{ wireguard_config_dir }}\{{ tunnel_name }}.conf'
+    Copy-Item -Path $temp -Destination $dest -Force
+    Remove-Item -Path $temp -Force -ErrorAction SilentlyContinue
+    & '{{ wireguard_exe }}' /installtunnelservice $dest
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
@@ -89,13 +90,42 @@
   until: tunnel_svc_poll.exists | default(false)
   retries: 10
   delay: 3
-  failed_when: false
+  failed_when: not (tunnel_svc_poll.exists | default(false))
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Ensure the tunnel service is running and set to auto-start
+# 7b. UPDATE PATH (tunnel service already registered)
+#
+#     On re-runs the watcher recognises the existing service and does not delete
+#     the file, so a plain win_copy to Configurations works fine.
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Deploy WireGuard tunnel configuration (update)
+  ansible.windows.win_copy:
+    src: wg0.conf
+    dest: "{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf"
+    backup: true
+  notify: Restart WireGuard tunnel service
+  when: >
+    wg_service_info.exists is defined
+    and wg_service_info.exists
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Verify the config file is in place and looks valid
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Verify deployed config is a valid WireGuard file
+  ansible.windows.win_shell: "(Get-Content '{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf' -TotalCount 1).Trim()"
+  register: conf_first_line
+  changed_when: false
+
+- name: Assert config starts with [Interface]
+  ansible.builtin.assert:
+    that: conf_first_line.stdout | trim == '[Interface]'
+    fail_msg: "Config first line was: '{{ conf_first_line.stdout }}'"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Ensure the tunnel service is running and set to auto-start
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Ensure WireGuard tunnel service is running
   ansible.windows.win_service:
