@@ -36,10 +36,10 @@ The project uses a single role (`roles/wireguard`) with this flow:
 3. **`group_vars/windows/vars.yml`** — non-secret path variables (installer URL, exe path, config dir)
 4. **`group_vars/windows/vault.yml`** — ansible-vault encrypted secrets (SSH password)
 5. **`roles/wireguard/vars/main.yml`** — tunnel name (used as `.conf` filename and service suffix)
-6. **`roles/wireguard/tasks/main.yml`** — 8 idempotent tasks: check install → download → install silently → flush handlers → ensure config dir → deploy config → register tunnel service → start service
+6. **`roles/wireguard/tasks/main.yml`** — idempotent tasks: check install → download → install silently → flush handlers → ensure config dir → deploy config → validate config format → wait for WireGuardManager (fresh install only) → register tunnel service → poll for service appearance → start service
 7. **`roles/wireguard/files/wg0.conf`** — vault-encrypted WireGuard `.conf` file; auto-decrypted by Ansible on copy
 8. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
-9. **`.github/workflows/deploy.yml`** — GitHub Actions CI/CD; runs on self-hosted runner, decrypts vault via `VAULT_PASSWORD` secret, deploys on every push to `main`
+9. **`.github/workflows/deploy.yml`** — GitHub Actions CI/CD; runs on self-hosted runner, decrypts vault via `VAULT_PASSWORD` secret, deploys on merged PR to `main`
 
 ## Providing the WireGuard config file
 

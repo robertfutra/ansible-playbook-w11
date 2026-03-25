@@ -10,9 +10,11 @@ This playbook connects from a Linux-based Ansible server to a Windows 11 machine
 
 1. Downloads the official WireGuard installer from `wireguard.com`
 2. Installs WireGuard silently (no user interaction needed)
-3. Deploys a VPN tunnel configuration file (`.conf`)
-4. Registers the tunnel as a Windows service
-5. Starts the service and sets it to launch automatically on boot
+3. Waits for the WireGuard manager service to be fully ready
+4. Deploys a pre-generated VPN tunnel configuration file (`.conf`) stored encrypted in the repo
+5. Validates the deployed config is a valid WireGuard file
+6. Registers the tunnel as a Windows service
+7. Starts the service and sets it to launch automatically on boot
 
 The whole process is **idempotent** — running the playbook multiple times is safe and will only make changes when something is actually different.
 
@@ -86,31 +88,42 @@ Restart-Service sshd
 
 ---
 
-## Configuration
+## Providing the WireGuard config file
 
-Before running the playbook, open `roles/wireguard/vars/main.yml` and fill in the WireGuard VPN details:
+The tunnel config is a pre-generated `.conf` file (obtained from your VPN server admin or generated with `wg genkey`) that is stored **encrypted** in the repo at `roles/wireguard/files/wg0.conf`.
 
-```yaml
-tunnel_name: "wg0"
+To add or replace it:
 
-# Your VPN client address
-wireguard_address: "10.0.0.2/24"
+```bash
+# Encrypt your .conf file and place it where the role expects it
+ansible-vault encrypt wg0.conf --output roles/wireguard/files/wg0.conf
 
-# Keys — generate with: wg genkey | tee privatekey | wg pubkey > publickey
-wireguard_private_key: "REPLACE_WITH_BASE64_PRIVATE_KEY"
-
-# Optional DNS server
-wireguard_dns: "1.1.1.1"
-
-# VPN server details
-wireguard_peer_public_key: "REPLACE_WITH_BASE64_PUBLIC_KEY"
-wireguard_peer_endpoint: "SERVER_IP:51820"
-
-# Routes — "0.0.0.0/0" = all traffic through VPN (full tunnel)
-wireguard_peer_allowed_ips: "0.0.0.0/0, ::/0"
+# Commit the encrypted file
+git add roles/wireguard/files/wg0.conf
+git commit -m "Update WireGuard tunnel config"
 ```
 
-> **Security note:** Secrets (`wireguard_private_key`, `ansible_password`) are encrypted with `ansible-vault` and stored in `group_vars/windows/vault.yml`. The vault password is stored as a GitHub Actions secret (`VAULT_PASSWORD`) and never written to disk beyond the workflow run.
+The `tunnel_name` variable in `roles/wireguard/vars/main.yml` must match the filename (without `.conf`). Ansible auto-decrypts the file when copying it to the target.
+
+---
+
+## Secrets handling
+
+Secrets are stored encrypted using ansible-vault (AES256). The vault password is provided at runtime:
+
+- **Local runs:** `--vault-password-file ~/.vault_pass` or prompted interactively
+- **GitHub Actions:** `VAULT_PASSWORD` repository secret, written to a temp file and deleted after the run
+
+| Secret | Location | Description |
+|--------|----------|-------------|
+| SSH password | `group_vars/windows/vault.yml` | Password for the `robert` user on the Windows target |
+| WireGuard config | `roles/wireguard/files/wg0.conf` | Vault-encrypted tunnel `.conf` file |
+
+```bash
+# Edit or re-key the vault variables file
+ansible-vault edit group_vars/windows/vault.yml
+ansible-vault rekey group_vars/windows/vault.yml
+```
 
 ---
 
@@ -121,22 +134,22 @@ wireguard_peer_allowed_ips: "0.0.0.0/0, ::/0"
 ansible -m win_ping windows
 
 # 2. Run the playbook
-ansible-playbook site.yml
+ansible-playbook site.yml --vault-password-file ~/.vault_pass
 
 # Optional: run in check mode (no changes applied)
-ansible-playbook site.yml --check
+ansible-playbook site.yml --check --vault-password-file ~/.vault_pass
 
 # Optional: verbose output for troubleshooting
-ansible-playbook site.yml -v
+ansible-playbook site.yml -v --vault-password-file ~/.vault_pass
 ```
 
 ---
 
 ## Automated Deployment (GitHub Actions)
 
-Every push to `main` automatically triggers a deployment via the self-hosted runner on the Ansible server (`10.70.0.246`). The workflow can also be triggered manually from the GitHub Actions UI.
+The pipeline triggers automatically when a **pull request is merged into `main`**. It can also be triggered manually from the GitHub Actions UI.
 
-**What the workflow does:**
+**Workflow:**
 
 1. Clones the repo to `~/ansible-playbook-w11` on the runner if it doesn't exist, or pulls the latest changes
 2. Writes the vault password (from the `VAULT_PASSWORD` GitHub secret) to a temp file
@@ -153,7 +166,9 @@ Every push to `main` automatically triggers a deployment via the self-hosted run
 
 | Secret | Description |
 |--------|-------------|
-| `VAULT_PASSWORD` | Password used to decrypt `group_vars/windows/vault.yml` |
+| `VAULT_PASSWORD` | Password used to decrypt vault files |
+
+**Recommended: enable branch protection on `main`** (Settings → Branches) with "Require a pull request before merging" and at least 1 required approval.
 
 ---
 
@@ -177,7 +192,7 @@ Get-Service "WireGuardTunnel*"
 ansible-playbook/
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml                   # GitHub Actions CI/CD workflow (self-hosted runner)
+│       └── deploy.yml                   # GitHub Actions CI/CD (triggers on merged PR)
 ├── ansible.cfg                          # Ansible configuration (SSH, inventory path)
 ├── site.yml                             # Main playbook entry point
 ├── inventory/
@@ -185,28 +200,11 @@ ansible-playbook/
 ├── group_vars/
 │   └── windows/
 │       ├── vars.yml                     # Non-secret variables (installer URL, paths)
-│       └── vault.yml                    # Ansible Vault encrypted secrets
+│       └── vault.yml                    # Ansible Vault encrypted secrets (SSH password)
 └── roles/
     └── wireguard/
         ├── tasks/main.yml               # Installation and configuration tasks
         ├── handlers/main.yml            # Service restart and post-install pause
-        ├── vars/main.yml                # VPN tunnel variables (edit before running)
-        └── templates/tunnel.conf.j2     # WireGuard config file template
-```
-
----
-
-## Generating WireGuard Keys
-
-If you don't have keys yet, generate them on any Linux machine with WireGuard installed:
-
-```bash
-# Generate a private key
-wg genkey > privatekey
-
-# Derive the public key from it
-wg pubkey < privatekey > publickey
-
-cat privatekey   # paste into wireguard_private_key
-cat publickey    # share with the VPN server administrator
+        ├── vars/main.yml                # Tunnel name
+        └── files/wg0.conf              # Vault-encrypted WireGuard tunnel config
 ```
