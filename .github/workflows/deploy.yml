@@ -10,10 +10,13 @@ jobs:
     runs-on: self-hosted   # executes on the ansible-server runner (10.70.0.246)
 
     steps:
-      - name: Pull latest changes from GitHub
+      - name: Clone or pull latest changes from GitHub
         run: |
-          cd ~/ansible-playbook-w11
-          git pull origin main
+          if [ -d ~/ansible-playbook-w11 ]; then
+            cd ~/ansible-playbook-w11 && git pull origin main
+          else
+            git clone https://github.com/robertfutra/ansible-playbook-w11.git ~/ansible-playbook-w11
+          fi
 
       - name: Write vault password to temp file
         run: echo "${{ secrets.VAULT_PASSWORD }}" > ~/ansible-playbook-w11/.vault_pass
