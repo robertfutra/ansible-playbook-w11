@@ -1,12 +1,14 @@
 name: Deploy WireGuard Playbook
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches: [main]
   workflow_dispatch:   # allows manual trigger from the GitHub Actions UI
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: self-hosted   # executes on the ansible-server runner (10.70.0.246)
 
     steps:
