@@ -43,7 +43,21 @@
     state: directory
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Deploy tunnel config (vault-encrypted file, auto-decrypted by Ansible)
+# 6. Wait for WireGuardManager before touching the config directory
+#    On a fresh install, WireGuardManager initializes in the background after
+#    win_package completes and may clear Data\Configurations while starting up.
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Wait for WireGuard manager service to be ready
+  ansible.windows.win_service:
+    name: WireGuardManager
+  register: wg_manager_state
+  until: wg_manager_state.state == 'running'
+  retries: 10
+  delay: 3
+  when: not wg_exe_stat.stat.exists
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Deploy tunnel config (vault-encrypted file, auto-decrypted by Ansible)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Deploy WireGuard tunnel configuration
   ansible.windows.win_copy:
@@ -53,7 +67,7 @@
   notify: Restart WireGuard tunnel service
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6b. Verify deployed config is a real WireGuard file (not raw vault ciphertext)
+# 7b. Verify deployed config is a real WireGuard file (not raw vault ciphertext)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Verify deployed config is a valid WireGuard file
   ansible.windows.win_shell: "(Get-Content '{{ wireguard_config_dir }}\\{{ tunnel_name }}.conf' -TotalCount 1).Trim()"
@@ -69,22 +83,13 @@
       The vault-encrypted source file may not have been decrypted before copy.
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Register the tunnel as a Windows service (if not already registered)
+# 8. Register the tunnel as a Windows service (if not already registered)
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Check if WireGuard tunnel service is already registered
   ansible.windows.win_service:
     name: "WireGuardTunnel${{ tunnel_name }}"
   register: wg_service_info
   failed_when: false
-
-- name: Wait for WireGuard manager service to be ready
-  ansible.windows.win_service:
-    name: WireGuardManager
-  register: wg_manager_state
-  until: wg_manager_state.state == 'running'
-  retries: 10
-  delay: 3
-  when: not wg_exe_stat.stat.exists
 
 - name: Register WireGuard tunnel as a Windows service
   ansible.windows.win_command: >
