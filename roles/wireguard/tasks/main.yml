@@ -64,7 +64,7 @@
 #     copies the file into Configurations\ as part of the install — since it
 #     controls that write internally, its own watcher does not fight it.
 # ─────────────────────────────────────────────────────────────────────────────
-- name: Stop WireGuard Manager to prevent FileSystemWatcher interference
+- name: Stop WireGuard Manager
   ansible.windows.win_service:
     name: WireGuardManager
     state: stopped
@@ -72,7 +72,7 @@
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
-- name: Copy config directly to WireGuard Configurations directory
+- name: Copy config to Configurations directory
   ansible.windows.win_copy:
     src: wg0.conf
     dest: 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
@@ -80,14 +80,23 @@
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
-- name: Register tunnel service pointing to Configurations directory
+- name: Register tunnel service (Manager still stopped — no watcher)
   ansible.windows.win_shell: |
     & '{{ wireguard_exe }}' /installtunnelservice 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
-- name: Start WireGuard Manager again
+- name: Verify config exists before starting Manager
+  ansible.windows.win_stat:
+    path: 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
+  register: conf_stat
+  failed_when: not conf_stat.stat.exists
+  when: >
+    wg_service_info.exists is not defined
+    or not wg_service_info.exists
+
+- name: Start WireGuard Manager
   ansible.windows.win_service:
     name: WireGuardManager
     state: started
