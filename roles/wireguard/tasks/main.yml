@@ -83,15 +83,15 @@
     start= auto obj= LocalSystem
   when: not (wg_service_info.exists | default(false))
 
-- name: Start tunnel service
+- name: Start WireGuard Manager before starting tunnel
   ansible.windows.win_service:
-    name: "WireGuardTunnel${{ tunnel_name }}"
+    name: WireGuardManager
     state: started
   when: not (wg_service_info.exists | default(false))
 
-- name: Start WireGuard Manager after tunnel is running
+- name: Start tunnel service
   ansible.windows.win_service:
-    name: WireGuardManager
+    name: "WireGuardTunnel${{ tunnel_name }}"
     state: started
   when: not (wg_service_info.exists | default(false))
 # ─────────────────────────────────────────────────────────────────────────────
