@@ -172,6 +172,62 @@ The pipeline triggers automatically when a **pull request is merged into `main`*
 
 ---
 
+### Setting up the self-hosted runner
+
+GitHub-hosted runners are on the public internet and cannot reach `10.88.0.47`. The runner must live on a machine that has **LAN access to both GitHub (outbound HTTPS/443) and the Windows target (port 22)** — that machine is `ansible-server` (10.70.0.246).
+
+**1. Install the runner on ansible-server (as `fadmin`)**
+
+```bash
+mkdir ~/actions-runner && cd ~/actions-runner
+
+# Get the exact download URL + registration token from:
+#   repo → Settings → Actions → Runners → New self-hosted runner → Linux x64
+curl -o actions-runner-linux-x64-<version>.tar.gz -L <url-from-github>
+tar xzf actions-runner-linux-x64-<version>.tar.gz
+```
+
+**2. Register the runner to the repo**
+
+```bash
+# The token is single-use and expires after 1 hour — generate it from the GitHub UI above
+./config.sh --url https://github.com/<your-org>/ansible-playbook-w11 \
+            --token <REGISTRATION_TOKEN>
+# Accept all defaults (runner name, work folder, labels)
+# This assigns the label "self-hosted", which matches runs-on: self-hosted in deploy.yml
+```
+
+**3. Start the runner**
+
+```bash
+./run.sh
+# Keep this alive in a tmux or screen session.
+# It must be running for GitHub Actions to pick up jobs.
+# Restart it manually after ansible-server reboots.
+```
+
+**4. Install Ansible on the runner**
+
+```bash
+sudo apt update && sudo apt install -y python3 python3-pip
+pip3 install ansible
+ansible-galaxy collection install ansible.windows
+```
+
+**5. SSH access to the Windows target**
+
+The runner executes playbooks as `fadmin`. Ansible connects to `10.88.0.47` over SSH using the password stored in `group_vars/windows/vault.yml`. No SSH key setup is needed — `ansible.cfg` sets `host_key_checking = False`, so the first connection goes through without a known-hosts prompt.
+
+**6. Add the GitHub secret**
+
+In the repo: **Settings → Secrets and variables → Actions → New repository secret**
+
+| Name | Value |
+|------|-------|
+| `VAULT_PASSWORD` | The ansible-vault password used to encrypt `vault.yml` and `wg0.conf` |
+
+---
+
 ## Verifying the Result
 
 After the playbook finishes, check on the Windows machine:

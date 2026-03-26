@@ -40,6 +40,7 @@ The project uses a single role (`roles/wireguard`) with this flow:
 7. **`roles/wireguard/files/wg0.conf`** — vault-encrypted WireGuard `.conf` file; auto-decrypted by Ansible on copy
 8. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
 9. **`.github/workflows/deploy.yml`** — GitHub Actions CI/CD; runs on self-hosted runner, decrypts vault via `VAULT_PASSWORD` secret, deploys on merged PR to `main`
+10. **Self-hosted runner (ansible-server, 10.70.0.246, user `fadmin`)** — GitHub Actions runner registered with label `self-hosted`; bridges GitHub (internet) to the internal LAN where the Windows target lives; runs via `./run.sh` in a tmux session (not a systemd service); must have Ansible + `ansible.windows` installed
 
 ## Providing the WireGuard config file
 
