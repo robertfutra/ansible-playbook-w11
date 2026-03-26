@@ -1,6 +1,6 @@
 # Ansible Playbook — WireGuard on Windows 11
 
-Ansible playbook to automatically install and configure the [WireGuard](https://www.wireguard.com/) VPN client on a Windows 11 machine using an SSH connection.
+Ansible playbook to automatically install and configure the [WireGuard](https://www.wireguard.com/) VPN client on a Windows 11 machine using an SSH connection...
 
 ---
 
