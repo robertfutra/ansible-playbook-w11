@@ -76,9 +76,11 @@
     dest: 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
   when: not (wg_service_info.exists | default(false))
 
-- name: Register tunnel service directly with sc.exe (no Manager needed)
+- name: Register tunnel service directly with New-Service
   ansible.windows.win_shell: |
-    sc.exe create "WireGuardTunnel`${{ tunnel_name }}" binPath= "\"C:\Program Files\WireGuard\wireguard.exe\" /tunnelservice \"C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf\"" start= auto obj= LocalSystem
+    New-Service -Name "WireGuardTunnel`${{ tunnel_name }}" `
+      -BinaryPathName '"C:\Program Files\WireGuard\wireguard.exe" /tunnelservice "C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf"' `
+      -StartupType Automatic
   when: not (wg_service_info.exists | default(false))
 
 - name: Start WireGuard Manager before starting tunnel
