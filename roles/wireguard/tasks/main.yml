@@ -43,6 +43,19 @@
     state: directory
 
 # ─────────────────────────────────────────────────────────────────────────────
+# 5b. Grant robert full access to WireGuard Data directory (runs always)
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Grant robert full access to WireGuard Data directory
+  ansible.windows.win_acl:
+    path: 'C:\Program Files\WireGuard\Data'
+    user: robert
+    rights: FullControl
+    type: allow
+    state: present
+    inherit: ContainerInherit, ObjectInherit
+    propagation: None
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 6. Check if the tunnel service is already registered
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Check if WireGuard tunnel service is already registered
@@ -54,20 +67,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 7a. FRESH INSTALL PATH (no tunnel service registered yet)
 #
-#     Stage to Temp (outside the watched directory), call /installtunnelservice
-#     from Temp — WireGuard itself copies the file into Configurations\ as part
-#     of the install, so its own watcher does not fight it.
+#     Stop WireGuardManager to prevent FileSystemWatcher interference,
+#     copy conf directly to Configurations, register tunnel via
+#     installtunnelservice, start tunnel first, then start Manager.
+#     Manager sees tunnel already running and does not delete the conf.
 # ─────────────────────────────────────────────────────────────────────────────
-
-- name: Grant robert write access to Configurations directory
-  ansible.windows.win_acl:
-    path: 'C:\Program Files\WireGuard\Data\Configurations'
-    user: robert
-    rights: FullControl
-    type: allow
-    state: present
-  when: not (wg_service_info.exists | default(false))
-
 - name: Stop WireGuard Manager to prevent FileSystemWatcher interference
   ansible.windows.win_service:
     name: WireGuardManager
@@ -84,6 +88,12 @@
   ansible.windows.win_shell: |
     & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice "C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf"
     Start-Sleep -Seconds 3
+  when: not (wg_service_info.exists | default(false))
+
+- name: Start tunnel service before starting Manager
+  ansible.windows.win_service:
+    name: "WireGuardTunnel${{ tunnel_name }}"
+    state: started
   when: not (wg_service_info.exists | default(false))
 
 - name: Start WireGuard Manager
