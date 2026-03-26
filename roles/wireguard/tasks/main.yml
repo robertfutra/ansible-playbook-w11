@@ -58,6 +58,14 @@
 #     from Temp — WireGuard itself copies the file into Configurations\ as part
 #     of the install, so its own watcher does not fight it.
 # ─────────────────────────────────────────────────────────────────────────────
+- name: Grant SYSTEM full access to Configurations directory
+  ansible.windows.win_acl:
+    path: 'C:\Program Files\WireGuard\Data\Configurations'
+    user: SYSTEM
+    rights: FullControl
+    type: allow
+    state: present
+    
 - name: Stage config to temp directory
   ansible.windows.win_copy:
     src: wg0.conf
