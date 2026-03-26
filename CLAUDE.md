@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ansible playbook to install and configure the WireGuard VPN client on a Windows 11 host over SSH.
 
-- **Ansible controller**: Linux VM at `10.70.0.246` (user: `fadmin`)
-- **Target host**: Windows 11 VM at `10.88.0.47` (user: `robert`)
+- **Ansible controller**: Linux VM at `<ANSIBLE_SERVER_IP>` (user: `<ANSIBLE_USER>`)
+- **Target host**: Windows 11 VM at `<WINDOWS_TARGET_IP>` (user: `<WINDOWS_USER>`)
 - **Connection method**: SSH + PowerShell shell (not WinRM)
 - **Required collection**: `ansible.windows` (`ansible-galaxy collection install ansible.windows`)
 
@@ -40,7 +40,7 @@ The project uses a single role (`roles/wireguard`) with this flow:
 7. **`roles/wireguard/files/wg0.conf`** — vault-encrypted WireGuard `.conf` file; auto-decrypted by Ansible on copy
 8. **`roles/wireguard/handlers/main.yml`** — post-install pause (5s) and service restart on config change
 9. **`.github/workflows/deploy.yml`** — GitHub Actions CI/CD; runs on self-hosted runner, decrypts vault via `VAULT_PASSWORD` secret, deploys on merged PR to `main`
-10. **Self-hosted runner (ansible-server, 10.70.0.246, user `fadmin`)** — GitHub Actions runner registered with label `self-hosted`; bridges GitHub (internet) to the internal LAN where the Windows target lives; runs via `./run.sh` in a tmux session (not a systemd service); must have Ansible + `ansible.windows` installed
+10. **Self-hosted runner (ansible-server, `<ANSIBLE_SERVER_IP>`, user `<ANSIBLE_USER>`)** — GitHub Actions runner registered with label `self-hosted`; bridges GitHub (internet) to the internal LAN where the Windows target lives; runs via `./run.sh` in a tmux session (not a systemd service); must have Ansible + `ansible.windows` installed
 
 ## Providing the WireGuard config file
 
@@ -73,7 +73,7 @@ Secrets are stored encrypted in `group_vars/windows/vault.yml` using ansible-vau
 - **GitHub Actions:** `VAULT_PASSWORD` repository secret, written to a temp file and deleted after the playbook run
 
 Vault variables used:
-- `vault_robert-w11_password` — SSH password for the Windows target (reference via `vars['vault_robert-w11_password']` to avoid Jinja2 treating the hyphen as minus)
+- `vault_windows_password` — SSH password for the Windows target (referenced via `vars['vault_windows_password']`)
 
 The WireGuard config is stored as a vault-encrypted **file** (`roles/wireguard/files/wg0.conf`). The deploy task reads it with `lookup('file', ...)` which decrypts it on the controller before writing to the target.
 

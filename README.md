@@ -24,14 +24,14 @@ The whole process is **idempotent** — running the playbook multiple times is s
 
 | Role | Hostname | IP | OS | User |
 |------|----------|----|----|------|
-| Ansible Controller | ansible-server | 10.70.0.246 | Linux | fadmin |
-| Target Machine | robert-w11 | 10.88.0.47 | Windows 11 | robert |
+| Ansible Controller | ansible-server | `<ANSIBLE_SERVER_IP>` | Linux | `<ANSIBLE_USER>` |
+| Target Machine | windows-target | `<WINDOWS_TARGET_IP>` | Windows 11 | `<WINDOWS_USER>` |
 
 ---
 
 ## Prerequisites
 
-### On the Ansible Server (10.70.0.246)
+### On the Ansible Server
 
 ```bash
 # Install Python and Ansible
@@ -42,7 +42,7 @@ pip3 install ansible
 ansible-galaxy collection install ansible.windows
 ```
 
-### On the Windows 11 Machine (10.88.0.47)
+### On the Windows 11 Machine
 
 Run the following in PowerShell **as Administrator**:
 
@@ -84,7 +84,7 @@ Restart-Service sshd
 
 > **Note:** The firewall rule is the most common reason SSH hangs when connecting from the Ansible server. Even if OpenSSH is installed and running, without this rule the connection will appear to hang indefinitely.
 
-> The Windows user (`robert`) must be a member of the local **Administrators** group.
+> The Windows user (`<WINDOWS_USER>`) must be a member of the local **Administrators** group.
 
 ---
 
@@ -116,7 +116,7 @@ Secrets are stored encrypted using ansible-vault (AES256). The vault password is
 
 | Secret | Location | Description |
 |--------|----------|-------------|
-| SSH password | `group_vars/windows/vault.yml` | Password for the `robert` user on the Windows target |
+| SSH password | `group_vars/windows/vault.yml` | Password for the `<WINDOWS_USER>` user on the Windows target |
 | WireGuard config | `roles/wireguard/files/wg0.conf` | Vault-encrypted tunnel `.conf` file |
 
 ```bash
@@ -174,9 +174,9 @@ The pipeline triggers automatically when a **pull request is merged into `main`*
 
 ### Setting up the self-hosted runner
 
-GitHub-hosted runners are on the public internet and cannot reach `10.88.0.47`. The runner must live on a machine that has **LAN access to both GitHub (outbound HTTPS/443) and the Windows target (port 22)** — that machine is `ansible-server` (10.70.0.246).
+GitHub-hosted runners are on the public internet and cannot reach `<WINDOWS_TARGET_IP>`. The runner must live on a machine that has **LAN access to both GitHub (outbound HTTPS/443) and the Windows target (port 22)** — that machine is `ansible-server` (`<ANSIBLE_SERVER_IP>`).
 
-**1. Install the runner on ansible-server (as `fadmin`)**
+**1. Install the runner on ansible-server (as `<ANSIBLE_USER>`)**
 
 ```bash
 mkdir ~/actions-runner && cd ~/actions-runner
@@ -191,7 +191,7 @@ tar xzf actions-runner-linux-x64-<version>.tar.gz
 
 ```bash
 # The token is single-use and expires after 1 hour — generate it from the GitHub UI above
-./config.sh --url https://github.com/<your-org>/ansible-playbook-w11 \
+./config.sh --url https://github.com/<YOUR_ORG>/<YOUR_REPO> \
             --token <REGISTRATION_TOKEN>
 # Accept all defaults (runner name, work folder, labels)
 # This assigns the label "self-hosted", which matches runs-on: self-hosted in deploy.yml
@@ -216,7 +216,7 @@ ansible-galaxy collection install ansible.windows
 
 **5. SSH access to the Windows target**
 
-The runner executes playbooks as `fadmin`. Ansible connects to `10.88.0.47` over SSH using the password stored in `group_vars/windows/vault.yml`. No SSH key setup is needed — `ansible.cfg` sets `host_key_checking = False`, so the first connection goes through without a known-hosts prompt.
+The runner executes playbooks as `<ANSIBLE_USER>`. Ansible connects to `<WINDOWS_TARGET_IP>` over SSH using the password stored in `group_vars/windows/vault.yml`. No SSH key setup is needed — `ansible.cfg` sets `host_key_checking = False`, so the first connection goes through without a known-hosts prompt.
 
 **6. Add the GitHub secret**
 
