@@ -60,8 +60,9 @@
 #     file — regardless of how long we wait before writing.
 #
 #     Fix: stage the config to C:\Windows\Temp\ (outside the watched directory),
-#     then move it to Configurations and call /installtunnelservice in a single
-#     PowerShell script so there is no gap for the watcher to fire.
+#     then call /installtunnelservice with the TEMP path. WireGuardManager itself
+#     copies the file into Configurations\ as part of the install — since it
+#     controls that write internally, its own watcher does not fight it.
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Stage WireGuard config to temp (outside watched directory)
   ansible.windows.win_copy:
@@ -72,13 +73,10 @@
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
-- name: Move config and register tunnel service atomically
+- name: Register tunnel service via WireGuardManager (from temp — avoids watcher)
   ansible.windows.win_shell: |
     $temp = 'C:\Windows\Temp\{{ tunnel_name }}.conf'
-    $dest = '{{ wireguard_config_dir }}\{{ tunnel_name }}.conf'
-    Copy-Item -Path $temp -Destination $dest -Force
-    Remove-Item -Path $temp -Force -ErrorAction SilentlyContinue
-    & '{{ wireguard_exe }}' /installtunnelservice $dest
+    & '{{ wireguard_exe }}' /installtunnelservice $temp
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
