@@ -64,35 +64,20 @@
 #     copies the file into Configurations\ as part of the install — since it
 #     controls that write internally, its own watcher does not fight it.
 # ─────────────────────────────────────────────────────────────────────────────
-- name: Stage WireGuard config to temp (outside watched directory)
+- name: Copy config directly to WireGuard Configurations directory
   ansible.windows.win_copy:
     src: wg0.conf
-    dest: 'C:\Windows\Temp\{{ tunnel_name }}.conf'
-    backup: false
+    dest: 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
 
-- name: Register tunnel service via WireGuardManager (from temp — avoids watcher)
+- name: Register tunnel service pointing to Configurations directory
   ansible.windows.win_shell: |
-    $temp = 'C:\Windows\Temp\{{ tunnel_name }}.conf'
-    & '{{ wireguard_exe }}' /installtunnelservice $temp
+    & '{{ wireguard_exe }}' /installtunnelservice 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
   when: >
     wg_service_info.exists is not defined
     or not wg_service_info.exists
-
-- name: Wait for WireGuard tunnel service to appear after registration
-  ansible.windows.win_service:
-    name: "WireGuardTunnel${{ tunnel_name }}"
-  register: tunnel_svc_poll
-  until: tunnel_svc_poll.exists | default(false)
-  retries: 10
-  delay: 3
-  failed_when: not (tunnel_svc_poll.exists | default(false))
-  when: >
-    wg_service_info.exists is not defined
-    or not wg_service_info.exists
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 7b. UPDATE PATH (tunnel service already registered)
 #
