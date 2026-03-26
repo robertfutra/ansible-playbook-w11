@@ -54,15 +54,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # 7a. FRESH INSTALL PATH (no tunnel service registered yet)
 #
-#     WireGuardManager runs a FileSystemWatcher on the Configurations directory.
-#     If we write the .conf file there directly, the watcher detects it, tries
-#     to auto-register the tunnel, fails (no existing service), and DELETES the
-#     file — regardless of how long we wait before writing.
-#
-#     Fix: stage the config to C:\Windows\Temp\ (outside the watched directory),
-#     then call /installtunnelservice with the TEMP path. WireGuardManager itself
-#     copies the file into Configurations\ as part of the install — since it
-#     controls that write internally, its own watcher does not fight it.
+#     Stage to Temp, register from Temp, then copy conf to Configurations
+#     after the service is registered (watcher won't delete it at that point).
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Stage config to temp directory
   ansible.windows.win_copy:
@@ -73,14 +66,17 @@
 - name: Register tunnel via installtunnelservice from temp path
   ansible.windows.win_shell: |
     & "C:\Program Files\WireGuard\wireguard.exe" /installtunnelservice "C:\Windows\Temp\{{ tunnel_name }}.conf"
-    Start-Sleep -Seconds 5
-    Remove-Item "C:\Windows\Temp\{{ tunnel_name }}.conf" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Seconds 3
   when: not (wg_service_info.exists | default(false))
+
+- name: Copy conf to Configurations after service is registered
+  ansible.windows.win_copy:
+    src: wg0.conf
+    dest: 'C:\Program Files\WireGuard\Data\Configurations\{{ tunnel_name }}.conf'
+  when: not (wg_service_info.exists | default(false))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 7b. UPDATE PATH (tunnel service already registered)
-#
-#     On re-runs the watcher recognises the existing service and does not delete
-#     the file, so a plain win_copy to Configurations works fine.
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Deploy WireGuard tunnel configuration (update)
   ansible.windows.win_copy:
@@ -103,13 +99,3 @@
 - name: Assert config starts with [Interface]
   ansible.builtin.assert:
     that: conf_first_line.stdout | trim == '[Interface]'
-    fail_msg: "Config first line was: '{{ conf_first_line.stdout }}'"
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 9. Ensure the tunnel service is running and set to auto-start
-# ─────────────────────────────────────────────────────────────────────────────
-- name: Ensure WireGuard tunnel service is running
-  ansible.windows.win_service:
-    name: "WireGuardTunnel${{ tunnel_name }}"
-    state: started
-    start_mode: auto
