@@ -69,8 +69,8 @@
 #
 #     Stop WireGuardManager to prevent FileSystemWatcher interference,
 #     copy conf directly to Configurations, register tunnel via
-#     installtunnelservice, start tunnel first, then start Manager.
-#     Manager sees tunnel already running and does not delete the conf.
+#     installtunnelservice, start tunnel. Manager stays stopped —
+#     the tunnel runs as an independent Windows service and does not need it.
 # ─────────────────────────────────────────────────────────────────────────────
 - name: Stop WireGuard Manager to prevent FileSystemWatcher interference
   ansible.windows.win_service:
@@ -90,15 +90,9 @@
     Start-Sleep -Seconds 3
   when: not (wg_service_info.exists | default(false))
 
-- name: Start tunnel service before starting Manager
+- name: Start tunnel service
   ansible.windows.win_service:
     name: "WireGuardTunnel${{ tunnel_name }}"
-    state: started
-  when: not (wg_service_info.exists | default(false))
-
-- name: Start WireGuard Manager
-  ansible.windows.win_service:
-    name: WireGuardManager
     state: started
   when: not (wg_service_info.exists | default(false))
 
