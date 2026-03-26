@@ -48,7 +48,7 @@
 - name: Grant robert full access to WireGuard Data directory
   ansible.windows.win_acl:
     path: 'C:\Program Files\WireGuard\Data'
-    user: robert
+    user: "{{ ansible_user }}"
     rights: FullControl
     type: allow
     state: present
